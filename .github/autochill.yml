@@ -1,0 +1,9 @@
+name: Bot Soiree Auto
+on:
+  workflow_dispatch: # C'est ce qui crée le bouton pour essayer
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python soiree.py
