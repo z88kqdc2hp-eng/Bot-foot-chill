@@ -1,15 +1,14 @@
-name: Bot Soiree Auto
+name: Bot Auto Quotidien
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 9,13,18 * * *' # Se lance seul à 10h, 14h et 19h (Heure FR)
+  workflow_dispatch: # Garde le bouton pour les tests
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Run script
-        run: python chill.py
+      - run: python main.py # Lance ton script safe automatiquement
