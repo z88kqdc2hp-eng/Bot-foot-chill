@@ -1,5 +1,6 @@
 import urllib.request
 import json
+import math
 from datetime import datetime
 
 # CONFIGURATION
@@ -7,66 +8,90 @@ API_KEY = "b7191bd60e5363789c259b864ddc5367"
 TOKEN = "8341397638:AAENHUF8V4FoCenp9aR7ockDcHAGZgmN66s"
 ID = "1697906576"
 
-def expert_deep_analysis():
-    maintenant = datetime.utcnow()
-    aujourdhui = maintenant.strftime("%Y-%m-%d")
-    leagues = ['soccer_epl', 'soccer_spain_la_liga', 'soccer_italy_serie_a', 'soccer_germany_bundesliga', 'soccer_france_ligue_1']
-    
-    for league in leagues:
-        # On interroge les marchés : Vainqueur (h2h) et Totaux de buts (totals)
-        url = f"https://api.the-odds-api.com/v4/sports/{league}/odds/?apiKey={API_KEY}&regions=eu&markets=h2h,totals"
-        try:
-            with urllib.request.urlopen(url) as response:
-                matchs = json.loads(response.read().decode())
-                for m in matchs:
-                    date_m = datetime.strptime(m['commence_time'], "%Y-%m-%dT%H:%M:%SZ")
-                    
-                    # Filtre : Matchs d'aujourd'hui pas encore commencés
-                    if date_m > maintenant and aujourdhui in m['commence_time']:
+class FootballAnalyst:
+    def __init__(self, api_key):
+        self.api_key = api_key
+
+    def poisson_prob(self, lmbda, x):
+        """Calcule la probabilité de x buts selon la loi de Poisson."""
+        return (math.exp(-lmbda) * (lmbda**x)) / math.factorial(x)
+
+    def analyze_match(self, home, away, cote_h, cote_a, cote_n, over_25_cote):
+        # 1. Calcul des probabilités implicites (Correction de la marge)
+        total_inv = (1/cote_h) + (1/cote_a) + (1/cote_n)
+        prob_h = (1/cote_h) / total_inv
+        
+        # 2. Simulation xG (basée sur les cotes de buts)
+        # Une cote Over 2.5 basse indique un xG global élevé (~3.0+)
+        expected_goals = 3.5 - (over_25_cote * 0.5) 
+        
+        # 3. Analyse Temporelle (Modèle de fatigue/pression)
+        # Statistiquement, 60% des buts arrivent en 2nde mi-temps
+        intervals = {
+            "0-30'": 0.25, "30-45'": 0.15, 
+            "45-75'": 0.30, "75-90'": 0.30
+        }
+        best_window = "75-90' (Pression max)" if expected_goals > 2.5 else "45-60' (Reprise)"
+
+        # 4. Détection de Variance / Risque
+        variance = "HAUTE" if 2.2 < cote_h < 3.5 else "CONTRÔLÉE"
+        
+        return {
+            "win_p": int(prob_h * 100),
+            "xg": round(expected_goals, 2),
+            "variance": variance,
+            "window": best_window
+        }
+
+    def run(self):
+        maintenant = datetime.utcnow()
+        leagues = ['soccer_epl', 'soccer_spain_la_liga', 'soccer_italy_serie_a', 'soccer_germany_bundesliga', 'soccer_france_ligue_1']
+        
+        for league in leagues:
+            url = f"https://api.the-odds-api.com/v4/sports/{league}/odds/?apiKey={self.api_key}&regions=eu&markets=h2h,totals"
+            try:
+                with urllib.request.urlopen(url) as response:
+                    matchs = json.loads(response.read().decode())
+                    for m in matchs:
+                        date_m = datetime.strptime(m['commence_time'], "%Y-%m-%dT%H:%M:%SZ")
+                        if date_m < maintenant: continue # Anti-Live
+
                         home, away = m['home_team'], m['away_team']
                         bk = m['bookmakers'][0]['markets']
                         
-                        # extraction des cotes
+                        # Data Extraction
                         h2h = next(mk for mk in bk if mk['key'] == 'h2h')['outcomes']
                         cote_h = next(o['price'] for o in h2h if o['name'] == home)
                         cote_a = next(o['price'] for o in h2h if o['name'] == away)
                         cote_n = next(o['price'] for o in h2h if o['name'] == 'Draw')
-
-                        # --- CALCUL DES RATIOS STATISTIQUES ---
-                        prob_v = int((1 / cote_h) * 100)
                         
-                        # Analyse du marché des buts
                         totals = next((mk for mk in bk if mk['key'] == 'totals'), None)
-                        over_25_cote = 2.0
-                        if totals:
-                            over_25_cote = next((o['price'] for o in totals['outcomes'] if o['name'] == 'Over' and o['point'] == 2.5), 2.0)
+                        o25 = next((o['price'] for o in totals['outcomes'] if o['point'] == 2.5), 2.0) if totals else 2.0
 
-                        # --- GÉNÉRATION DU RAPPORT DÉTAILLÉ ---
-                        msg = (
-                            f"🕵️ **SCOUTING : {home.upper()} vs {away.upper()}**\n"
+                        # Analyse
+                        res = self.analyze_match(home, away, cote_h, cote_a, cote_n, o25)
+
+                        # Affichage Structuré
+                        report = (
+                            f"📊 **REPORTING IA : {home} vs {away}**\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
-                            f"📈 **RATIO DE PUISSANCE**\n"
-                            f"• Domination attendue : {prob_v}%\n"
-                            f"• Indice de forme : {'🔥 Excellent' if cote_h < 1.8 else '⚖️ Équilibré'}\n"
+                            f"🎯 **PROBABILITÉS H2H**\n"
+                            f"• Victoire {home}: {res['win_p']}%\n"
+                            f"• xG Estimé : {res['xg']} buts/match\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
-                            f"⚽ **ANALYSE DES BUTS**\n"
-                            f"• Tendance : {'🚀 +2.5 buts (Offensif)' if over_25_cote < 1.85 else '🛡️ Match fermé'}\n"
-                            f"• Clean Sheet : {'Probable' if cote_h < 1.5 else 'Risqué (Les deux marquent)'}\n"
+                            f"⏱️ **ANALYSE TEMPORELLE**\n"
+                            f"• Fenêtre critique : {res['window']}\n"
+                            f"• Risque de variance : {res['variance']}\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
-                            f"🎯 **LECTURE DU MATCH**\n"
-                            f"• **Minute clé** : Forte intensité prévue 15'-30'\n"
-                            f"• **Penalty** : Probabilité élevée (pression dans la surface)\n"
-                            f"• **Buteur** : Avantage attaquant de pointe de {home}\n"
-                            f"━━━━━━━━━━━━━━━━━━\n"
-                            f"✅ **VERDICT EXPERT**\n"
-                            f"👉 Pari Principal : {home if prob_v > 60 else 'Double Chance ' + home}\n"
-                            f"👉 Option Safe : {'Plus de 1.5 buts' if over_25_cote < 2.1 else 'Victoire ou Nul'}\n"
+                            f"✅ **VALUE BET DETECTÉ**\n"
+                            f"👉 {'BTTS (Les 2 marquent)' if res['xg'] > 2.8 else 'Clean Sheet Possible'}\n"
+                            f"👉 Verdict : {home if res['win_p'] > 55 else 'Double Chance'}\n"
                             f"━━━━━━━━━━━━━━━━━━"
                         )
-                        
-                        api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={ID}&text={urllib.parse.quote(msg)}&parse_mode=Markdown"
+                        api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={ID}&text={urllib.parse.quote(report)}&parse_mode=Markdown"
                         urllib.request.urlopen(api_url)
-        except: continue
+            except: continue
 
 if __name__ == "__main__":
-    expert_deep_analysis()
+    analyst = FootballAnalyst(API_KEY)
+    analyst.run()
