@@ -1,8 +1,6 @@
 name: Bot Soiree Auto
 on:
-  schedule:
-    - cron: '0 17 * * *' # Se lance à 17h00 UTC
-  workflow_dispatch:
+  workflow_dispatch: # C'est ce qui crée le bouton pour essayer
 jobs:
   run:
     runs-on: ubuntu-latest
