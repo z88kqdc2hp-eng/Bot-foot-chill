@@ -2,8 +2,14 @@ name: Bot Soiree Auto
 on:
   workflow_dispatch:
 jobs:
-  run:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: python soiree.py
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Run script
+        run: python soiree.py
