@@ -1,6 +1,6 @@
 name: Bot Soiree Auto
 on:
-  workflow_dispatch: # C'est ce qui crée le bouton pour essayer
+  workflow_dispatch:
 jobs:
   run:
     runs-on: ubuntu-latest
