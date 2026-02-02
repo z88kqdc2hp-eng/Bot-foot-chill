@@ -1,9 +1,8 @@
-name: Bot Soiree Automatique
+name: Bot Chill Auto
 on:
   schedule:
-    - cron: '0 17 * * *'  # Se lance seul à 18h00 (Heure FR)
-    - cron: '0 19 * * *'  # Se lance seul à 20h00 (Heure FR)
-  workflow_dispatch:      # Pour pouvoir le lancer à la main
+    - cron: '30 17 * * *' # Se lance à 18h30 pour les matchs du soir
+  workflow_dispatch:
 jobs:
   run:
     runs-on: ubuntu-latest
